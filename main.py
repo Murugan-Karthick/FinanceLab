@@ -10,12 +10,15 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 import numpy as np
+import plotly.express as px
+
+st.set_page_config(page_title='FinanceLab',page_icon='favicon.png')
 
 # downloading nifty50 historical data from yfinance
 nifty_df = yf.download('^NSEI',start='2010-01-01')
 
 # methods to write text
-st.write(""" # Momentum Driven Stock Analysis """)
+st.title("""Momentum Driven Stock Analysis""")
 
 # loading historical price of all stocks
 df = pd.read_feather('data.feather')
@@ -88,24 +91,47 @@ for date in mtl.index[:-1]:
     returns.append(pf_performance(date))
     
 # comparing both nifty50 and strategy performance
-st.write("### Performance of Nifty50 and Strategy")
+st.subheader("Performance of Nifty50 and Strategy")
 combined = pd.DataFrame([pd.Series(nifty_mtl.cumprod().values.tolist()[:-1], index=mtl.index[:-1],name='Nifty50 Return'),pd.Series(returns,index=mtl.index[:-1],name='Strategy Return').cumprod()]).T
-st.line_chart(combined)
+fig = px.line(combined, x=combined.index, y=combined.columns,width=700, height=500)
+st.plotly_chart(fig)
 
 query_date = st.selectbox(
-    'Choose a Date to Pick Top Stocks:',
-    tuple(ret_3.dropna().index.tolist())
+    '**Select a Date to Create Portfolio**',
+    tuple(ret_3.dropna().index.tolist()[:-1])
     )
 
 # get top stocks for given date
 top_stocks = get_top(query_date)
-st.write("### Top Stocks For a Date")
-st.table(top_stocks)
+top_df = pd.DataFrame(top_stocks,columns=['Stocks In Portfolio'])
+st.subheader(f"***Top Stocks On {str(query_date).split()[0]}***")
+st.table(top_df.T)
+
 
 # performance of top stocks on next month
 performance_table = mtl.loc[query_date:,top_stocks][1:2]
-st.write("### Performance of Top Stocks for Selected Date")
-st.table(performance_table)
 
-for stock in top_stocks.values.tolist():
-    st.line_chart(dataframe.loc[query_date:performance_table.index[0],stock])
+current, future = st.columns(2)
+
+with current:
+    
+    st.subheader(f"***Performance of Portfolio On {str(query_date).split()[0]}***")
+    st.table(mtl.loc[query_date:,top_stocks].iloc[0,:])
+
+    st.subheader(f"***Buy Price of Portfolio On {str(query_date).split()[0]}***")
+    st.table(df.loc[query_date,top_stocks])
+    
+    
+    
+with future:
+    
+    st.subheader(f"***Performance of Portfolio On {str(performance_table.index.values[0]).split('T')[0]}***")
+    st.table(performance_table.T)
+    
+    st.subheader(f"***Price of Portfolio On {str(performance_table.index.values[0]).split('T')[0]}***")
+    st.table(df.loc[query_date,top_stocks])
+        
+st.subheader("***Price Movement of Portfolio***")
+top_picks = dataframe.loc[query_date:performance_table.index[0],top_stocks.values.tolist()]
+fig = px.line(top_picks, x=top_picks.index, y=top_picks.columns)
+st.plotly_chart(fig)
